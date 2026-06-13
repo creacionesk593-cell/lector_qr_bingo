@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Registro de Cartones</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body { font-family: 'Segoe UI', sans-serif; margin: 0; padding: 0; background: #f9f9f9; }
+    header { background: #4CAF50; color: white; padding: 15px; text-align: center; }
+    main { padding: 20px; }
+    #reader { width: 100%; max-width: 400px; margin: auto; }
+    .formulario { margin-top: 20px; background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+    .formulario input { width: 100%; margin: 8px 0; padding: 10px; border: 1px solid #ccc; border-radius: 5px; }
+    button { width: 100%; padding: 12px; background: #4CAF50; color: white; border: none; border-radius: 5px; font-size: 16px; cursor: pointer; }
+    button:hover { background: #45a049; }
+    table { border-collapse: collapse; width: 100%; margin-top: 20px; background: white; border-radius: 8px; overflow: hidden; }
+    th, td { border: 1px solid #ddd; padding: 10px; text-align: center; }
+    th { background: #4CAF50; color: white; }
+    label { display: block; margin: 10px 0; }
+    #resultadoQR { margin-top: 15px; font-weight: bold; color: #333; }
+    #contador { margin-top: 10px; font-size: 16px; color: #4CAF50; font-weight: bold; }
+  </style>
+  <script src="https://unpkg.com/html5-qrcode"></script>
+</head>
+<body>
+  <header>
+    <h2>Registro de Cartones</h2>
+  </header>
+  <main>
+    <!-- Opciones -->
+    <label><input type="checkbox" id="leerTodos"> Leer todos los QR</label>
+    <div id="reader"></div>
+    <div id="resultadoQR">Esperando escaneo...</div>
+    <div id="contador">QR leídos: 0</div>
+    <br>
+    <input type="file" id="fileInput" accept="image/*" multiple>
+    <br><br>
+
+    <!-- Campo de formato -->
+    <label for="formato">Formato: caracteres después de @</label>
+    <input type="number" id="formato" placeholder="Ej: 6">
+
+    <!-- Formulario -->
+    <div class="formulario">
+      <h3>Datos personales</h3>
+      <input type="text" id="nombre" placeholder="Nombre">
+      <input type="text" id="celular" placeholder="Celular">
+      <input type="text" id="correo" placeholder="Correo">
+      <input type="text" id="vendido" placeholder="Vendido (1/0)">
+      <input type="text" id="id" placeholder="ID">
+      <button onclick="registrarCartones()">Registrar Cartones</button>
+    </div>
+
+    <!-- Tabla -->
+    <table id="tabla">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Serie (QR)</th>
+          <th>Nombre</th>
+          <th>Celular</th>
+          <th>Correo</th>
+          <th>Vendido</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </main>
+
+  <script>
+    let listaQR = [];
+    let listaCartones = [];
+
+    function actualizarContador() {
+      document.getElementById("contador").innerText = "QR leídos: " + listaQR.length;
+    }
+
+    function procesarFormato(texto) {
+      let formato = parseInt(document.getElementById("formato").value);
+      if (!isNaN(formato)) {
+        let pos = texto.indexOf("@");
+        if (pos !== -1 && texto.length > pos + formato) {
+          return texto.substring(pos+1, pos+1+formato);
+        }
+      }
+      return texto;
+    }
+
+    function onScanSuccess(decodedText, decodedResult) {
+      let procesado = procesarFormato(decodedText);
+      document.getElementById("resultadoQR").innerText = "Leído: " + decodedText + " → Serie: " + procesado;
+
+      if (document.getElementById("leerTodos").checked) {
+        listaQR.push(procesado);
+        mostrarQR(procesado);
+      } else {
+        listaQR = [procesado];
+        limpiarTabla();
+        mostrarQR(procesado);
+      }
+      actualizarContador();
+    }
+
+    function onScanError(errorMessage) {
+      console.warn(errorMessage);
+    }
+
+    let scanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250 });
+    scanner.render(onScanSuccess, onScanError);
+
+    // Leer QR desde imágenes (varias a la vez)
+    document.getElementById("fileInput").addEventListener("change", async (event) => {
+      const files = event.target.files;
+      for (let file of files) {
+        try {
+          const qrCode = await Html5Qrcode.scanFile(file, true);
+          let procesado = procesarFormato(qrCode);
+          listaQR.push(procesado);
+          mostrarQR(procesado);
+          document.getElementById("resultadoQR").innerText = 
+            "Leído de imagen: " + qrCode + " → Serie: " + procesado;
+        } catch (err) {
+          console.error("Error leyendo archivo:", file.name, err);
+        }
+      }
+      actualizarContador();
+    });
+
+    function mostrarQR(qr) {
+      let tbody = document.querySelector("#tabla tbody");
+      let fila = document.createElement("tr");
+      fila.innerHTML = `
+        <td></td>
+        <td>${qr}</td>
+        <td></td>
+        <td></td>
+        <td></td>
+        <td></td>
+      `;
+      tbody.appendChild(fila);
+    }
+
+    function limpiarTabla() {
+      document.querySelector("#tabla tbody").innerHTML = "";
+    }
+
+    function registrarCartones() {
+      let nombre = document.getElementById("nombre").value;
+      let celular = document.getElementById("celular").value;
+      let correo = document.getElementById("correo").value;
+      let vendido = document.getElementById("vendido").value;
+      let id = document.getElementById("id").value;
+
+      listaCartones = listaQR.map((qr, index) => ({
+        id: id ? id + "-" + (index+1) : (index+1),
+        serie: qr,
+        nombre: nombre,
+        celular: celular,
+        correo: correo,
+        vendido: vendido
+      }));
+
+      limpiarTabla();
+      listaCartones.forEach(carton => {
+        let tbody = document.querySelector("#tabla tbody");
+        let fila = document.createElement("tr");
+        fila.innerHTML = `
+          <td>${carton.id}</td>
+          <td>${carton.serie}</td>
+          <td>${carton.nombre}</td>
+          <td>${carton.celular}</td>
+          <td>${carton.correo}</td>
+          <td>${carton.vendido}</td>
+        `;
+        tbody.appendChild(fila);
+      });
+
+      console.log("Cartones listos para enviar:", listaCartones);
+    }
+  </script>
+</body>
+</html>
